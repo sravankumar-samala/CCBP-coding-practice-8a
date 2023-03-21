@@ -23,66 +23,32 @@ let db;
   }
 })();
 
-app.get("/todos/", async (req, res) => {
-  try {
-    const query = `
-        SELECT * FROM todo
-        ORDER BY id;`;
-    const todosArr = await db.all(query);
-    res.send(todosArr);
-  } catch (error) {
-    console.log(error.message);
-  }
-});
+const hasPriorityAndStatus = (priority, status) =>
+  priority !== undefined && status !== undefined;
 
-app.put("/todos/:Id", async (req, res) => {
-  try {
-    const todoId = req.params.Id;
-    const { status } = req.body;
-    const updateTodoQuery = `
-        UPDATE todo SET
-        status = '${status}'
-        WHERE id = ${todoId};`;
-
-    await db.run(updateTodoQuery);
-    res.send(`Updated todo id ${todoId} successfully.`);
-  } catch (error) {
-    console.log(error.message);
-  }
-});
+const isNotEqualUndefined = (variable) => variable !== undefined;
 
 // scenario-1 /todos/?status=TO%20DO
 // scenario-2 /todos/?priority=HIGH
 // scenario-3 /todos/?priority=HIGH&status=IN%20PROGRESS
 // scenario-4 /todos/?search_q=Play
 
-const hasPriorityAndStatus = (reqQuery) => {
-  return reqQuery.priority !== undefined && reqQuery.status !== undefined;
-};
-
-const hasStatus = (reqQuery) => {
-  return reqQuery.status !== undefined;
-};
-const hasPriority = (reqQuery) => {
-  return reqQuery.priority !== undefined;
-};
-
 app.get("/todos/", async (req, res) => {
   try {
-    const { search_q = "", priority, status } = req.query;
-    console.log(hasPriorityAndStatus(req.query));
+    let { search_q = "", priority, status } = req.query;
     let getTodoQuery;
+
     switch (true) {
-      case hasPriorityAndStatus(req.query):
+      case hasPriorityAndStatus(priority, status):
         getTodoQuery = `SELECT * FROM todo
             WHERE todo LIKE '%${search_q}%' AND priority = '${priority}' AND
             status = '${status}';`;
         break;
-      case hasPriority(req.query):
+      case isNotEqualUndefined(priority):
         getTodoQuery = `SELECT * FROM todo
             WHERE todo LIKE '%${search_q}%' AND priority = '${priority}';`;
         break;
-      case hasStatus(req.query):
+      case isNotEqualUndefined(status):
         getTodoQuery = `SELECT * FROM todo
             WHERE todo LIKE '%${search_q}%' AND status = '${status}';`;
         break;
@@ -136,6 +102,39 @@ app.delete("/todos/:Id", async (req, res) => {
     res.send("Todo Deleted");
   } catch (error) {
     console.log(error.message);
+  }
+});
+
+// update todos bases on Id on diff scenarios.
+//if status ? Status Updated
+//if Priority ? Priority Updated
+//if todo ? todo Updated
+
+app.put("/todos/:Id", async (req, res) => {
+  try {
+    const todoId = req.params.Id;
+    const { status, priority, todo } = req.body;
+    let updateTodoQuery, responseMsg;
+
+    switch (true) {
+      case isNotEqualUndefined(status):
+        updateTodoQuery = `UPDATE todo SET status = '${status}' WHERE id = ${todoId};`;
+        responseMsg = "Status Updated";
+        break;
+      case isNotEqualUndefined(priority):
+        updateTodoQuery = `UPDATE todo SET priority = '${priority}' WHERE id = ${todoId};`;
+        responseMsg = "Priority Updated";
+        break;
+      default:
+        updateTodoQuery = `UPDATE todo SET todo = '${todo}' WHERE id = ${todoId};`;
+        responseMsg = "Todo Updated";
+        break;
+    }
+
+    await db.run(updateTodoQuery);
+    res.send(responseMsg);
+  } catch (err) {
+    console.log(err.message);
   }
 });
 
